@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Цифры БЦК</title>
+<title>Цифры</title>
 <style>
   :root {
     --bg: #171717;
@@ -214,26 +214,26 @@
   @media (max-width: 600px) { .rnd-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
   /* ===== Side menu ===== */
   .sidebar {
-    position: fixed; top: 0; left: 0; bottom: 0; width: 230px; z-index: 50; overflow-y: auto;
-    padding: max(56px, calc(40px + env(safe-area-inset-top))) 12px max(20px, env(safe-area-inset-bottom));
+    position: fixed; top: 0; left: 0; bottom: 0; width: 230px; z-index: 10000; overflow-y: auto;
+    padding: max(72px, calc(56px + env(safe-area-inset-top))) 12px max(20px, env(safe-area-inset-bottom));
     background: linear-gradient(180deg, #1f1f1f, #181818); border-right: 1px solid rgba(255,255,255,0.08);
   }
   .side-nav { display: flex; flex-direction: column; gap: 3px; }
   .nav-group { font-size: 0.68rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-faint); margin: 16px 12px 5px; }
   .nav-group:first-child { margin-top: 0; }
-  .nav-item {
+  #sidebar .nav-item {
     text-align: left; min-height: 42px; padding: 10px 14px; border-radius: 11px; border: 1px solid transparent;
     background: transparent; color: #a6a6a6; font-size: 0.95rem; font-weight: 560; cursor: pointer;
     transition: background-color .14s ease, color .14s ease, border-color .14s ease;
   }
-  .nav-item.sub { padding-left: 24px; }
-  .nav-item { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; }
+  #sidebar .nav-item.sub { padding-left: 24px; }
+  #sidebar .nav-item { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; }
   .nav-name { line-height: 1.2; }
   .nav-hint { font-size: 0.74rem; font-weight: 450; color: var(--text-faint); line-height: 1.2; }
-  .nav-item:hover .nav-hint { color: #8d8d8d; }
-  .nav-item.active .nav-hint { color: #bdbdbd; }
-  .nav-item:hover { color: #efefef; background: rgba(255,255,255,0.045); }
-  .nav-item.active { color: #fff; background: linear-gradient(180deg, #474747, #333); border-color: rgba(255,255,255,0.15); box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 5px 12px rgba(0,0,0,0.22); }
+  #sidebar .nav-item:hover .nav-hint { color: #8d8d8d; }
+  #sidebar .nav-item.active .nav-hint { color: #bdbdbd; }
+  #sidebar .nav-item:hover { color: #efefef; background: rgba(255,255,255,0.045); }
+  #sidebar .nav-item.active { color: #fff; background: linear-gradient(180deg, #474747, #333); border-color: rgba(255,255,255,0.15); box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 5px 12px rgba(0,0,0,0.22); }
   .menu-toggle, .menu-backdrop { display: none; }
   @media (min-width: 980px) { body { padding-left: 250px; } }
   @media (max-width: 979px) {
@@ -241,7 +241,7 @@
     body.menu-open { overflow: hidden; }
     body.menu-open .sidebar { transform: none; visibility: visible; transition: transform .22s ease, visibility 0s; }
     /* the dimming layer exists only while the menu is open */
-    .menu-backdrop { display: none; position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,0.55); }
+    .menu-backdrop { display: none; position: fixed; inset: 0; z-index: 9900; background: rgba(0,0,0,0.55); }
     body.menu-open .menu-backdrop { display: block; animation: fadeIn .2s ease; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     .menu-toggle {
@@ -255,6 +255,37 @@
     .burger::before { top: -6px; }
     .burger::after { top: 6px; }
   }
+
+  #sidebar .nav-item { flex: none; width: 100%; box-shadow: none; }
+  #sidebar .nav-item.active { box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 5px 12px rgba(0,0,0,0.22); }
+  .nav-hint, .nav-group { color: #777; }
+  #menuToggle { flex-shrink: 0; max-width: 860px; }
+
+
+  #menuCollapse {
+    position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; min-height: 44px;
+    padding: 8px 14px; border: 1px solid #454545; border-radius: 10px; background: #2c2c2c;
+    color: #eee; font-size: 1rem; cursor: pointer;
+  }
+  #menuCollapse:hover { color: #fff; background: #383838; }
+  @media (min-width: 980px) {
+    body.menu-collapsed { padding-left: 16px; }
+    body.menu-collapsed .sidebar { display: none; }
+    body.menu-collapsed #menuToggle {
+      display: flex; align-items: center; gap: 12px; position: fixed;
+      top: 12px; left: 16px; z-index: 9500; width: auto; min-height: 44px;
+      padding: 10px 14px; border: 1px solid #444; border-radius: 10px;
+      color: #eee; background: #292929; cursor: pointer;
+    }
+    body.menu-collapsed .burger, body.menu-collapsed .burger::before, body.menu-collapsed .burger::after {
+      display: block; width: 18px; height: 2px; background: #ddd;
+    }
+    body.menu-collapsed .burger { position: relative; }
+    body.menu-collapsed .burger::before, body.menu-collapsed .burger::after { content: ""; position: absolute; left: 0; }
+    body.menu-collapsed .burger::before { top: -6px; }
+    body.menu-collapsed .burger::after { top: 6px; }
+  }
+
   .stat .v.due { color: var(--orange); }
   .sheet-current { margin: 2px 0 14px; min-height: 4.2rem; justify-content: center; }
   .sheet-current .chars { font-size: 3.6rem; color: #fff; }
@@ -315,6 +346,7 @@
 <body>
 <div class="menu-backdrop" id="menuBackdrop"></div>
 <aside class="sidebar" id="sidebar" aria-label="Разделы">
+  <button id="menuCollapse" type="button" aria-label="Свернуть меню" aria-controls="sidebar">‹ <span>Свернуть</span></button>
   <nav class="side-nav">
     <button class="nav-item" data-go="theory"><span class="nav-name">Теория</span></button>
     <div class="nav-group">Обучение</div>
@@ -989,7 +1021,7 @@ function poolFrom(root, prefix) {
 // ===================== KEYBOARD ROUTING =====================
 let activeKeyHandler = null; // set by whichever runner is on screen
 document.addEventListener("keydown", e => {
-  if (activeKeyHandler) activeKeyHandler(e);
+  if (!document.body.classList.contains("menu-open") && activeKeyHandler) activeKeyHandler(e);
 });
 // buttons inside a running trainer must not keep focus, or Space would press them again
 document.addEventListener("click", e => {
@@ -2323,8 +2355,51 @@ function syncNav() {
   $$(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.go === k));
   $("#menuTitle").textContent = NAV_TITLES[k] || "";
 }
-function openMenu() { releaseFocus(); document.body.classList.add("menu-open"); $("#menuToggle").setAttribute("aria-expanded", "true"); }
-function closeMenu() { document.body.classList.remove("menu-open"); $("#menuToggle").setAttribute("aria-expanded", "false"); }
+const mobileMenu = window.matchMedia("(max-width: 979px)");
+document.body.classList.toggle("menu-collapsed", store.get("bck.menuCollapsed", false) === true);
+function syncSideMenu() {
+  const open = mobileMenu.matches && document.body.classList.contains("menu-open");
+  const expanded = mobileMenu.matches ? open : !document.body.classList.contains("menu-collapsed");
+  $("#sidebar").inert = !expanded;
+  $("#menuToggle").setAttribute("aria-expanded", String(expanded));
+  $("#menuToggle").setAttribute("aria-label", expanded ? "Закрыть меню" : "Открыть меню");
+  $$(".tab-content").forEach(el => { el.inert = open; });
+}
+function toggleDesktopMenu() {
+  releaseFocus();
+  const collapsed = document.body.classList.toggle("menu-collapsed");
+  store.set("bck.menuCollapsed", collapsed);
+  syncSideMenu();
+  $(collapsed ? "#menuToggle" : "#menuCollapse").focus();
+  window.dispatchEvent(new Event("resize"));
+}
+function toggleSideMenu() {
+  if (!mobileMenu.matches) return toggleDesktopMenu();
+  document.body.classList.contains("menu-open") ? closeMenu() : openMenu();
+}
+function openMenu() {
+  if (!mobileMenu.matches) return;
+  releaseFocus();
+  document.body.classList.add("menu-open");
+  syncSideMenu();
+  const active = $("#sidebar .nav-item.active") || $("#sidebar .nav-item");
+  if (active) active.focus();
+}
+function closeMenu() {
+  const wasOpen = document.body.classList.contains("menu-open");
+  document.body.classList.remove("menu-open");
+  syncSideMenu();
+  if (wasOpen && mobileMenu.matches) $("#menuToggle").focus();
+}
+mobileMenu.addEventListener("change", () => {
+  closeMenu();
+  // A breakpoint change can hide the currently focused menu button.
+  const active = document.activeElement;
+  if (active && (active.closest("#sidebar") || active.id === "menuToggle") && !active.offsetParent) {
+    if (mobileMenu.matches || document.body.classList.contains("menu-collapsed")) $("#menuToggle").focus();
+    else $("#menuCollapse").focus();
+  }
+});
 function go(target) {
   const [tab, mode] = target.split(":");
   if (mode && $("#learnMode").dataset.value !== mode) { const btn = $(`#learnMode button[data-val="${mode}"]`); if (btn) btn.click(); }
@@ -2354,9 +2429,24 @@ function init() {
 
   // side menu
   $$(".nav-item").forEach(b => b.addEventListener("click", () => { b.blur(); go(b.dataset.go); }));
-  $("#menuToggle").addEventListener("click", () => document.body.classList.contains("menu-open") ? closeMenu() : openMenu());
+  $("#menuToggle").addEventListener("click", toggleSideMenu);
+  $("#menuCollapse").addEventListener("click", () => mobileMenu.matches ? closeMenu() : toggleDesktopMenu());
   $("#menuBackdrop").addEventListener("click", closeMenu);
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("menu-open")) closeMenu(); });
+  document.addEventListener("keydown", e => {
+    if (!document.body.classList.contains("menu-open")) return;
+    if (e.key === "Escape") { e.preventDefault(); closeMenu(); }
+    else if (e.key === "Tab") {
+      const items = $$("#sidebar button").filter(el => !el.disabled && el.offsetParent !== null);
+      const first = items[0], last = items[items.length - 1];
+      if (!first) return;
+      if (e.shiftKey && (document.activeElement === first || !$("#sidebar").contains(document.activeElement))) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !$("#sidebar").contains(document.activeElement))) {
+        e.preventDefault(); first.focus();
+      }
+    }
+  });
+  syncSideMenu();
   tabListeners.push(name => {
     if (name === "theory") refreshTheory();
     keepInView();
