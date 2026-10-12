@@ -6,6 +6,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Цифры</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="theme-color" content="#171717">
+<link rel="stylesheet" href="./features.css">
 <style>
   :root {
     --bg: #171717;
@@ -583,6 +587,7 @@
   <div class="runbox hidden" id="auRun"></div>
 </section>
 </div>
+<script src="./features.js"></script>
 <script>
 "use strict";
 // ===================== DATA =====================
@@ -953,7 +958,7 @@ function matchWord(id, input) {
   });
 }
 const matchNumber = (id, input) => (input || "").replace(/\D/g, "") === id;
-const imgLine = id => `<b>${id}</b> ${esc(IMG[id].word)} — <span class="muted">${esc(IMG[id].img)}</span>`;
+const imgLine = id => `<b>${id}</b> ${esc(IMG[id].word)} — <span class="muted">${esc(IMG[id].img)}</span>${IMG[id].picture ? `<img class="personal-image" src="${esc(IMG[id].picture)}" alt="Образ числа ${esc(id)}">` : ""}`;
 
 // ===================== STATS =====================
 const STATS_KEY = "bck.stats.v1";
@@ -1249,6 +1254,7 @@ function showCellDetail(id) {
   $("#cellDetail").innerHTML = `
     <div class="big">${id} · ${esc(it.word)}</div>
     <div class="img">${esc(it.img)}</div>
+    ${it.picture ? `<img class="personal-image" src="${esc(it.picture)}" alt="Образ числа ${esc(id)}">` : ""}
     <div style="margin-top:8px">${analysisHtml(analyzeWord(it.word))}</div>
     <div class="faint" style="margin-top:6px">${statLine}</div>`;
 }
@@ -1907,6 +1913,7 @@ function startSequence(cfg) {
           <button class="btn back">Настройки</button>
         </div>
       </div>`;
+    appendRecallDetails(box, kind, digits, units, answers);
     $(".again", box).onclick = () => cfg.again ? (cleanup(), cfg.again()) : startSequence(readSeqSetup(kind));
     $(".back", box).onclick = backToSetup;
   }
@@ -1957,6 +1964,7 @@ function tone(ctx, dest, t, freq, dur, vol) {
 const VoiceDB = {
   db: null,
   open() {
+    if (this.db) return Promise.resolve(this.db);
     return new Promise(res => {
       try {
         const r = indexedDB.open("bck-voice", 1);
@@ -2366,6 +2374,7 @@ function audioRecall(box, digits, units, s, backToSetup) {
           <button class="btn back">Настройки</button>
         </div>
       </div>`;
+    appendRecallDetails(box, "audio", digits, units, answers, s.tempo);
     $(".again", box).onclick = () => { backToSetup(); startAudio(); };
     $(".back", box).onclick = backToSetup;
   };
@@ -2555,6 +2564,7 @@ function init() {
   switchTab(["theory", "learn", "digits", "binary", "audio"].includes(savedTab) ? savedTab : "theory");
 }
 init();
+initFeatures();
 </script>
 </body>
 </html>

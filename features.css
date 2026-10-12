@@ -1,0 +1,11 @@
+.adaptive-control { display: flex; margin: 12px 0; }
+#personalTools { margin-top: 14px; }
+#personalTools label { display: block; margin: 10px 0; }
+#personalTools label.check { display: flex; }
+#personalTools input[type=file] { max-width: 100%; width: 100%; font-size: .85rem; }
+#personalTools h3, .recall-analysis h3 { font-size: 1rem; margin: 12px 0; }
+#personalTools hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
+.personal-image { display: block; max-width: 100%; max-height: 180px; margin: 10px auto; border-radius: 8px; }
+.recall-analysis ul { margin-left: 20px; }
+.recall-analysis li { margin: 10px 0; overflow-wrap: anywhere; }
+.adaptive-feedback { margin-top: 12px; color: var(--green-soft); }

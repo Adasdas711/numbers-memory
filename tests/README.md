@@ -21,13 +21,14 @@ is needed after installation. Uncaught JavaScript errors fail each test.
 
 ## Current result
 
-All 73 tests passed in the latest full Chromium run. The twenty screenshots
-also match the original baselines byte for byte.
+All 92 tests passed in the latest full Chromium run. Screenshot baselines were
+reviewed and updated for the new personal-data panel and adaptive controls; the
+subsequent comparison run passed.
 
 The recorded lifecycle, storage, and accessibility defects have been fixed. See
 [regression status](KNOWN_FAILURES.md) for details. No checks are skipped or
-marked as expected failures, and the screenshot baselines have not been updated
-to accommodate these accessibility fixes.
+marked as expected failures. The accessibility fixes themselves did not require
+changes to screenshot baselines.
 
 ## Expanded edge cases
 
@@ -128,3 +129,22 @@ Actual images and mismatch diff images go to ignored `test-results/visual/`.
 GitHub Actions uploads this directory as `visual-test-results`, even if other
 tests fail. CI artifact upload configuration was added; the remote workflow has
 not been executed during this task.
+
+## New application features
+
+`test_features.py` adds 19 checks for personal words/descriptions/pictures,
+persistence and reset, escaping and rejected images, JSON downloads and imports,
+voice and settings round trips, confirmation and invalid data rejection, quota
+and transaction rollback, adaptive thresholds/limits/tempo, mistake analysis,
+manifest/icons, offline English playback, GitHub Pages subpath scope, and explicit
+Service Worker updates with old-cache cleanup.
+
+The app's offline cache version is checked with:
+
+```sh
+python tools/update-pwa-cache.py --check
+```
+
+After editing offline assets, run the generator without `--check` before releasing.
+Tests use fresh browser contexts; the PWA update test serves a versioned worker
+from an isolated test server and never edits production files.
