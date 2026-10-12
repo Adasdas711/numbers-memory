@@ -130,12 +130,14 @@
   .rules li { margin-bottom: 4px; }
   .grid10 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
   .cell {
+    appearance: none; font: inherit; color: inherit;
     background: #1e1e1e; border: 1px solid #353535; border-radius: 8px; padding: 6px 2px 5px; text-align: center; cursor: pointer;
     min-width: 0; transition: border-color .12s ease, background-color .12s ease;
   }
   .cell:hover { border-color: #666; }
   .cell.sel { border-color: var(--blue); background: #1a2a3a; }
   .cell .n { font-size: 0.92rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cell .n, .cell .w { display: block; }
   .grid10.singles .cell { padding: 8px 2px 7px; }
   .grid10.singles .cell .n { font-size: 1.15rem; }
   .grid10.singles .cell .w { font-size: 0.74rem; }
@@ -826,13 +828,17 @@ const similarity = (a, b) => (!a || !b) ? 0 : 1 - levenshtein(a, b) / Math.max(a
 // ===================== STORAGE =====================
 const store = {
   get(key, def) { try { const v = localStorage.getItem(key); return v == null ? def : JSON.parse(v); } catch (e) { return def; } },
+  getRecord(key) {
+    const value = this.get(key, {});
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  },
   set(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
 };
 
 // ===================== SETTINGS (auto-bound controls) =====================
 const SETTINGS_KEY = "bck.settings.v1";
 const Settings = {
-  v: store.get(SETTINGS_KEY, {}),
+  v: store.getRecord(SETTINGS_KEY),
   get(k) { return this.v[k]; },
   set(k, val) { this.v[k] = val; store.set(SETTINGS_KEY, this.v); }
 };
@@ -952,7 +958,10 @@ const imgLine = id => `<b>${id}</b> ${esc(IMG[id].word)} — <span class="muted"
 // ===================== STATS =====================
 const STATS_KEY = "bck.stats.v1";
 const Stats = {
-  d: store.get(STATS_KEY, {}),
+  d: Object.fromEntries(Object.entries(store.getRecord(STATS_KEY)).filter(([id, r]) =>
+    IMG[id] && r && typeof r === "object" &&
+    ["n", "ok", "tT", "nT", "tS", "nS"].every(k => Number.isFinite(r[k]) && r[k] >= 0) &&
+    r.ok <= r.n)),
   save() { store.set(STATS_KEY, this.d); },
   rec(id, { ok, tType, tSpeed } = {}) {
     if (!IMG[id]) return;
@@ -1021,20 +1030,32 @@ function poolFrom(root, prefix) {
 // ===================== KEYBOARD ROUTING =====================
 let activeKeyHandler = null; // set by whichever runner is on screen
 document.addEventListener("keydown", e => {
+  // Focused controls keep their native activation and editing keys.
+  if (e.defaultPrevented || e.target.closest?.("button, a[href], input, select, textarea, summary, [contenteditable], [role='button']")) return;
   if (!document.body.classList.contains("menu-open") && activeKeyHandler) activeKeyHandler(e);
 });
-// buttons inside a running trainer must not keep focus, or Space would press them again
+// Pointer taps release focus so subsequent training shortcuts target the page.
 document.addEventListener("click", e => {
   const b = e.target.closest && e.target.closest(".runbox button, .setup .start");
-  if (b) b.blur();
+  if (b && e.detail > 0) b.blur();
 });
 
 // ===================== GENERIC DRILL RUNNER =====================
 // items: [{ prompt, answer (html), check(input) -> bool, statsId, numeric }]
 function runDrill(box, items, opts = {}) {
+  if (stopLearnRun) stopLearnRun();
   const fmt = opts.fmt || "input";
   const results = [];
   let i = -1, shownAt = 0, waitingNext = false, revealed = false, finished = false;
+  let nextTimer = null, stopPresentation = null;
+  function stop() {
+    finished = true;
+    clearTimeout(nextTimer); nextTimer = null;
+    if (stopPresentation) { stopPresentation(); stopPresentation = null; }
+    activeKeyHandler = null;
+    if (stopLearnRun === stop) stopLearnRun = null;
+  }
+  stopLearnRun = stop;
 
   box.classList.remove("hidden");
   box.innerHTML = `
@@ -1058,6 +1079,8 @@ function runDrill(box, items, opts = {}) {
   const goBtn = $(".go", box);
 
   function show() {
+    if (finished) return;
+    if (stopPresentation) { stopPresentation(); stopPresentation = null; }
     i++;
     if (i >= items.length) return done();
     const it = items[i];
@@ -1078,7 +1101,7 @@ function runDrill(box, items, opts = {}) {
       $(".grade", box).classList.add("hidden");
     }
     shownAt = now();
-    if (it.onShow) it.onShow(promptEl, i);
+    if (it.onShow) stopPresentation = it.onShow(promptEl, i) || null;
   }
   function record(ok, t) {
     const it = items[i];
@@ -1087,7 +1110,7 @@ function runDrill(box, items, opts = {}) {
     if (it.onResult) it.onResult(ok, t);
   }
   function submit(giveUp) {
-    if (finished) return;
+    if (finished || nextTimer !== null) return;
     if (waitingNext) return show();
     const it = items[i];
     const val = giveUp ? "" : input.value;
@@ -1097,7 +1120,7 @@ function runDrill(box, items, opts = {}) {
     record(ok, t);
     promptEl.classList.add(ok ? "ok" : "bad");
     fb.innerHTML = ok ? `<span class="good">✓ ${it.answer}</span>` : `<span class="badc">✗ ${val ? esc(val) + " · " : ""}</span>${it.answer}`;
-    if (ok) { const at = i; setTimeout(() => { if (i === at && !finished) show(); }, opts.okDelay ?? 650); }
+    if (ok) { const at = i; nextTimer = setTimeout(() => { nextTimer = null; if (i === at && !finished) show(); }, opts.okDelay ?? 650); }
     else { waitingNext = true; goBtn.textContent = "Дальше"; input.value = ""; input.focus(); }
   }
   function reveal() {
@@ -1115,8 +1138,7 @@ function runDrill(box, items, opts = {}) {
   }
   function done() {
     releaseFocus();
-    finished = true;
-    activeKeyHandler = null;
+    stop();
     if (opts.onDone) opts.onDone(results);
     else renderDrillResults(box, results, opts);
   }
@@ -1137,7 +1159,7 @@ function runDrill(box, items, opts = {}) {
   }
   $(".stop", box).onclick = () => {
     if (results.length) return done();
-    finished = true; activeKeyHandler = null;
+    stop();
     if (opts.onCancel) opts.onCancel(); else if (opts.back) opts.back();
   };
   activeKeyHandler = e => {
@@ -1183,7 +1205,7 @@ let selectedCell = null;
 function renderTheory() {
   $("#codeGrid").innerHTML = Object.entries(CODE).map(([d, ls]) =>
     `<div class="code-cell"><div class="d">${d}</div><div class="c">${ls.toUpperCase().split("").join(" ")}</div><div class="h">${esc(CODE_HINT[d])}</div></div>`).join("");
-  const cell = id => `<div class="cell" data-id="${id}"><div class="n">${id}</div><div class="w">${esc(IMG[id].word)}</div></div>`;
+  const cell = id => `<button type="button" class="cell" data-id="${id}"><span class="n">${id}</span><span class="w">${esc(IMG[id].word)}</span></button>`;
   $("#grid2").innerHTML = IDS_2.map(cell).join("");
   $("#grid1").innerHTML = IDS_1.map(cell).join("");
   $("#binTable").innerHTML = Array.from({ length: 8 }, (_, v) => `<div><b>${v}</b><span>${v.toString(2).padStart(3, "0")}</span></div>`).join("");
@@ -1340,12 +1362,14 @@ function startFlash() {
     onShow: (el, idx) => {
       const num = $(".flash-num", el), sub = $(".flash-sub", el);
       el.dataset.k = idx;
-      setTimeout(() => {
+      let hideTimer = null;
+      const showTimer = setTimeout(() => {
         if (el.dataset.k != idx) return;
         num.textContent = g.join(" ");
         sub.textContent = `${(T / 1000).toFixed(2).replace(".", ",")} с`;
-        setTimeout(() => { if (el.dataset.k == idx) num.textContent = g.map(() => "··").join(" "); }, T);
+        hideTimer = setTimeout(() => { if (el.dataset.k == idx) num.textContent = g.map(() => "··").join(" "); }, T);
       }, 450);
+      return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
     },
     onResult: ok => {
       if (!adapt) return;
@@ -1707,7 +1731,7 @@ function startSequence(cfg) {
 
   const backToSetup = () => { releaseFocus(); cleanup(); box.classList.add("hidden"); box.innerHTML = ""; setupEl.classList.remove("hidden"); if (cfg.onBack) cfg.onBack(); };
   function cleanup() { st.ended = true; clearInterval(st.timer); activeKeyHandler = null; stopSeqRun[kind] = null; }
-  stopSeqRun[kind] = cleanup;
+  stopSeqRun[kind] = backToSetup;
 
   // ---------- MEMO ----------
   function renderMemo() {
@@ -2005,8 +2029,8 @@ function renderVoiceGrid() {
     return `<div class="voice-tile ${r ? "has" : ""}" data-d="${d}">
       <div class="d">${d}</div>
       <div class="s">${r ? `✓ ${(r.pcm.length / r.sr).toFixed(2).replace(".", ",")} с` : "нет записи"}</div>
-      <button class="btn rec">● Запись</button>
-      <button class="btn play" ${r ? "" : "disabled"}>▶</button>
+      <button class="btn rec" aria-label="Записать цифру ${d}">● Запись</button>
+      <button class="btn play" aria-label="Воспроизвести цифру ${d}" ${r ? "" : "disabled"}>▶</button>
     </div>`;
   }).join("");
   $$("#voiceGrid .voice-tile").forEach(t => {
@@ -2141,6 +2165,12 @@ async function keepAwake(on) {
 
 // ---- run ----
 let auStop = null;
+let auStarting = false, auStartVersion = 0;
+function cancelAudioStart() {
+  auStartVersion++;
+  auStarting = false;
+  $("#auSetup .start").disabled = false;
+}
 function audioSettings() {
   const root = $("#auSetup");
   return {
@@ -2169,110 +2199,124 @@ async function testSound() {
   }
 }
 async function startAudio() {
-  const s = audioSettings();
   const setup = $("#auSetup"), box = $("#auRun"), info = $("#auVoiceInfo");
-  if (s.voice === "own" && !ownComplete()) { updateVoiceInfo(); $("#auRecorder").open = true; info.textContent = "Для «Моего голоса» нужны записи всех 10 цифр, или выбери системный голос."; return; }
-  if (s.voice === "system" && !hasTTS()) { info.textContent = "Синтез речи здесь недоступен. Запиши свой голос."; return; }
-  const ctx = getCtx();
-  if (!ctx) { info.textContent = "Браузер не поддерживает Web Audio."; return; }
-  await ctx.resume();
-  if (s.voice === "system") { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); }
-  let bufs = null;
-  if (s.voice !== "system") {
-    try { bufs = await voiceBuffers(ctx, s.voice); }
-    catch (e) { info.textContent = "Не получилось подготовить звук. Обнови страницу и попробуй ещё раз."; return; }
-  }
-  keepAwake(true);
+  if (auStarting || auStop || currentTab !== "audio") return;
+  const version = ++auStartVersion;
+  const startButton = $(".start", setup);
+  auStarting = true;
+  startButton.disabled = true;
+  try {
+    const s = audioSettings();
+    updateVoiceInfo();
+    if (s.voice === "own" && !ownComplete()) { updateVoiceInfo(); $("#auRecorder").open = true; info.textContent = "Для «Моего голоса» нужны записи всех 10 цифр, или выбери системный голос."; return; }
+    if (s.voice === "system" && !hasTTS()) { info.textContent = "Синтез речи здесь недоступен. Запиши свой голос."; return; }
+    const ctx = getCtx();
+    if (!ctx) { info.textContent = "Браузер не поддерживает Web Audio."; return; }
+    await ctx.resume();
+    if (version !== auStartVersion) return;
+    if (s.voice === "system") { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); }
+    let bufs = null;
+    if (s.voice !== "system") bufs = await voiceBuffers(ctx, s.voice);
+    if (version !== auStartVersion) return;
+    keepAwake(true);
 
-  const digits = makeDigits("dec", s.count);
-  const units = toUnits("dec", digits);
-  const n = digits.length, T = s.tempo, train = s.mode === "train";
-  const rate = T <= 0.5 ? 1.8 : T <= 0.8 ? 1.5 : T <= 1 ? 1.3 : 1.05;
-  const master = ctx.createGain();
-  master.connect(ctx.destination);
-  const t0 = ctx.currentTime + 3.4;
-  [3, 2, 1].forEach(k => tone(ctx, master, t0 - k, 660, 0.09, 0.25));
-  const sources = [];
-  if (bufs) {
-    for (let i = 0; i < n; i++) {
-      const src = ctx.createBufferSource();
-      src.buffer = bufs[digits[i]];
-      src.connect(master);
-      src.start(t0 + i * T);
-      sources.push(src);
-    }
-  }
-  if (train && s.tick) for (let i = 1; i < n; i += 2) tone(ctx, master, t0 + i * T + T * 0.62, 1800, 0.025, 0.06);
-  tone(ctx, master, t0 + n * T + 0.15, 440, 0.25, 0.22);
-
-  setup.classList.add("hidden");
-  $("#auRecorder").classList.add("hidden");
-  box.classList.remove("hidden");
-  box.innerHTML = `
-    <div class="panel"><div class="stage">
-      <div class="countdown">3</div>
-      ${train ? `<div class="pulse"></div>` : ""}
-      <div class="progress"><div class="progress-bar"><div class="progress-fill"></div></div><div class="progress-text">${train ? "" : "&nbsp;"}</div></div>
-      <div class="muted">${train ? "Слушай и складывай пары в образы." : "Режим соревнования: без паузы и подсказок."}</div>
-      <div class="btn-row" style="width:100%;max-width:420px">
-        ${train ? `<button class="btn pause">Пауза</button>` : ""}
-        <button class="btn danger stop">Стоп</button>
-      </div>
-    </div></div>`;
-  let next = 0, paused = false, ended = false;
-  const timer = setInterval(() => {
-    if (ended) return;
-    const t = ctx.currentTime;
-    if (s.voice === "system") {
-      while (next < n && t >= t0 + next * T - 0.015) { speakDigit(digits[next], rate); next++; }
-    }
-    const cd = $(".countdown", box);
-    if (cd) cd.textContent = t < t0 ? String(Math.ceil(t0 - t)) : "";
-    const k = Math.max(0, Math.min(n, Math.floor((t - t0) / T) + 1));
-    $(".progress-fill", box).style.width = `${(k / n) * 100}%`;
-    if (train) {
-      $(".progress-text", box).textContent = t >= t0 ? `${k} / ${n}` : "";
-      const p = $(".pulse", box);
-      if (p) p.classList.toggle("on", t >= t0 && k <= n && ((t - t0) % T) < 0.15);
-    }
-    if (t >= t0 + n * T + 0.5) finish();
-  }, 10);
-  function cleanup() {
-    ended = true;
-    clearInterval(timer);
-    try { master.disconnect(); } catch (e) {}
-    sources.forEach(src => { try { src.stop(); } catch (e) {} });
-    if (hasTTS()) speechSynthesis.cancel();
-    if (ctx.state === "suspended") ctx.resume();
-    keepAwake(false);
-    auStop = null;
-  }
-  function backToSetup() {
-    releaseFocus();
-    cleanup();
-    box.classList.add("hidden"); box.innerHTML = "";
-    setup.classList.remove("hidden"); $("#auRecorder").classList.remove("hidden");
-  }
-  function finish() { cleanup(); audioRecall(box, digits, units, s, backToSetup); }
-  auStop = backToSetup;
-  $(".stop", box).onclick = backToSetup;
-  const pb = $(".pause", box);
-  if (pb) pb.onclick = async () => {
-    if (!paused) {
-      paused = true;
-      await ctx.suspend();
-      if (s.voice === "system") {
-        speechSynthesis.cancel();
-        // re-speak the digit that was cut off, if it had only just started
-        if (next > 0 && ctx.currentTime - (t0 + (next - 1) * T) < 0.45) next--;
+    const digits = makeDigits("dec", s.count);
+    const units = toUnits("dec", digits);
+    const n = digits.length, T = s.tempo, train = s.mode === "train";
+    const rate = T <= 0.5 ? 1.8 : T <= 0.8 ? 1.5 : T <= 1 ? 1.3 : 1.05;
+    const master = ctx.createGain();
+    master.connect(ctx.destination);
+    const t0 = ctx.currentTime + 3.4;
+    [3, 2, 1].forEach(k => tone(ctx, master, t0 - k, 660, 0.09, 0.25));
+    const sources = [];
+    if (bufs) {
+      for (let i = 0; i < n; i++) {
+        const src = ctx.createBufferSource();
+        src.buffer = bufs[digits[i]];
+        src.connect(master);
+        src.start(t0 + i * T);
+        sources.push(src);
       }
-      pb.textContent = "Продолжить";
-    } else {
-      paused = false;
-      await ctx.resume();
-      pb.textContent = "Пауза";
     }
-  };
+    if (train && s.tick) for (let i = 1; i < n; i += 2) tone(ctx, master, t0 + i * T + T * 0.62, 1800, 0.025, 0.06);
+    tone(ctx, master, t0 + n * T + 0.15, 440, 0.25, 0.22);
+
+    setup.classList.add("hidden");
+    $("#auRecorder").classList.add("hidden");
+    box.classList.remove("hidden");
+    box.innerHTML = `
+      <div class="panel"><div class="stage">
+        <div class="countdown">3</div>
+        ${train ? `<div class="pulse"></div>` : ""}
+        <div class="progress"><div class="progress-bar"><div class="progress-fill"></div></div><div class="progress-text">${train ? "" : "&nbsp;"}</div></div>
+        <div class="muted">${train ? "Слушай и складывай пары в образы." : "Режим соревнования: без паузы и подсказок."}</div>
+        <div class="btn-row" style="width:100%;max-width:420px">
+          ${train ? `<button class="btn pause">Пауза</button>` : ""}
+          <button class="btn danger stop">Стоп</button>
+        </div>
+      </div></div>`;
+    let next = 0, paused = false, ended = false;
+    const timer = setInterval(() => {
+      if (ended) return;
+      const t = ctx.currentTime;
+      if (s.voice === "system") {
+        while (next < n && t >= t0 + next * T - 0.015) { speakDigit(digits[next], rate); next++; }
+      }
+      const cd = $(".countdown", box);
+      if (cd) cd.textContent = t < t0 ? String(Math.ceil(t0 - t)) : "";
+      const k = Math.max(0, Math.min(n, Math.floor((t - t0) / T) + 1));
+      $(".progress-fill", box).style.width = `${(k / n) * 100}%`;
+      if (train) {
+        $(".progress-text", box).textContent = t >= t0 ? `${k} / ${n}` : "";
+        const p = $(".pulse", box);
+        if (p) p.classList.toggle("on", t >= t0 && k <= n && ((t - t0) % T) < 0.15);
+      }
+      if (t >= t0 + n * T + 0.5) finish();
+    }, 10);
+    function cleanup() {
+      ended = true;
+      clearInterval(timer);
+      try { master.disconnect(); } catch (e) {}
+      sources.forEach(src => { try { src.stop(); } catch (e) {} });
+      if (hasTTS()) speechSynthesis.cancel();
+      if (ctx.state === "suspended") ctx.resume();
+      keepAwake(false);
+      auStop = null;
+    }
+    function backToSetup() {
+      releaseFocus();
+      cleanup();
+      box.classList.add("hidden"); box.innerHTML = "";
+      setup.classList.remove("hidden"); $("#auRecorder").classList.remove("hidden");
+    }
+    function finish() { cleanup(); audioRecall(box, digits, units, s, backToSetup); }
+    auStop = backToSetup;
+    $(".stop", box).onclick = backToSetup;
+    const pb = $(".pause", box);
+    if (pb) pb.onclick = async () => {
+      if (!paused) {
+        paused = true;
+        await ctx.suspend();
+        if (s.voice === "system") {
+          speechSynthesis.cancel();
+          // re-speak the digit that was cut off, if it had only just started
+          if (next > 0 && ctx.currentTime - (t0 + (next - 1) * T) < 0.45) next--;
+        }
+        pb.textContent = "Продолжить";
+      } else {
+        paused = false;
+        await ctx.resume();
+        pb.textContent = "Пауза";
+      }
+    };
+  } catch (e) {
+    if (version === auStartVersion) info.textContent = "Не получилось подготовить звук. Обнови страницу и попробуй ещё раз.";
+  } finally {
+    if (version === auStartVersion) {
+      auStarting = false;
+      startButton.disabled = false;
+    }
+  }
 }
 function audioRecall(box, digits, units, s, backToSetup) {
   box.innerHTML = `
@@ -2452,7 +2496,12 @@ function init() {
     keepInView();
     syncNav();
     if (name !== "learn" && stopLearnRun) learnSetupBack($("#learnMode").dataset.value)();
-    if (name !== "audio" && auStop) auStop();
+    if (name !== "digits" && stopSeqRun.dec) stopSeqRun.dec();
+    if (name !== "binary" && stopSeqRun.bin) stopSeqRun.bin();
+    if (name !== "audio") {
+      if (auStarting) cancelAudioStart();
+      if (auStop) auStop();
+    }
   });
 
   // Learn
